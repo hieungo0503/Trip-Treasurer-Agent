@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: trip-treasurer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "9090:9090"   # Prometheus metrics
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  data:

@@ -1,0 +1,56 @@
+# ===== Secrets (NEVER commit) =====
+.env
+.env.local
+.env.production
+secrets/
+*.key
+*.pem
+*.p12
+*-service-account.json
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ===== Data =====
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sql.gz
+*.sql.gz.gpg
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ===== Docker =====
+.dockerignore
+
+# ===== Alembic =====
+# Giữ alembic.ini và versions/, chỉ ignore file generate tạm
+alembic/env.pyc
