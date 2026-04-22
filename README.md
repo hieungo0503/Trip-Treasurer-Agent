@@ -6,7 +6,7 @@ AI Agent quản lý chi tiêu du lịch nhóm qua **Zalo OA**, built với Pytho
 
 | File | Mô tả |
 |---|---|
-| `PLAN_v2.3.md` | Plan đầy đủ — kiến trúc, flow, DB schema, testing |
+| `PLAN_v2.3.md` | Plan đầy đủ — kiến trúc, flow, DB schema, testing strategy, **tiến độ thực tế** |
 | `HELP_CONTENT.md` | Nội dung 9 file help markdown cho bot |
 | `RELIABILITY_SECURITY.md` | Retry, circuit breaker, security, tracing, backup |
 
@@ -23,9 +23,9 @@ AI Agent quản lý chi tiêu du lịch nhóm qua **Zalo OA**, built với Pytho
 
 ```bash
 # 1. Clone và cài dependencies
-git clone <repo>
-cd travel-expense-agent
-python -m venv .venv
+git clone https://github.com/hieungo0503/Trip-Treasurer-Agent.git
+cd Trip-Treasurer-Agent
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
@@ -38,6 +38,11 @@ pytest tests/ -v
 
 # 4. Khởi động server local
 uvicorn app.main:app --reload --port 8080
+
+# 5. Test bot qua mock channel
+curl -X POST http://localhost:8080/mock/send \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user001", "message": "/help"}'
 ```
 
 ## Chạy với Docker
@@ -57,57 +62,71 @@ docker compose logs -f app
 ```
 travel-expense-agent/
 ├── app/
-│   ├── main.py                    # FastAPI entry point
-│   ├── config.py                  # Settings (pydantic-settings)
-│   ├── agent/                     # Agent core (state machine)
-│   │   ├── orchestrator.py        # TODO Phase 1
-│   │   ├── intents.py             # TODO Phase 1
-│   │   ├── trip_resolver.py       # TODO Phase 1
-│   │   └── nodes/                 # Parse/commit nodes
+│   ├── main.py                    # ✅ FastAPI entry point + lifespan
+│   ├── config.py                  # ✅ Settings (pydantic-settings)
+│   ├── agent/
+│   │   ├── orchestrator.py        # ✅ Full pipeline Phase 1
+│   │   ├── intents.py             # ✅ Intent classifier
+│   │   ├── trip_resolver.py       # ✅ Trip context resolution
+│   │   └── nodes/
+│   │       ├── commit_expense.py      # ✅
+│   │       ├── commit_topup.py        # ✅
+│   │       ├── commit_advance_expense.py  # ✅
+│   │       ├── commit_initial_topup.py    # ✅
+│   │       └── commit_trip.py         # ✅
 │   ├── channels/
-│   │   ├── zalo.py                # TODO Phase 2
-│   │   └── mock.py                # TODO Phase 1 (test)
+│   │   ├── mock.py                # ✅ POST /mock/send (test local)
+│   │   └── zalo.py                # 🔲 Phase 2
 │   ├── domain/                    # ✅ Business logic (done)
-│   │   ├── models.py              # Pydantic models
+│   │   ├── models.py
 │   │   ├── fund.py                # Quỹ logic + invariants
 │   │   ├── settlement.py          # Thuật toán chia tiền
 │   │   ├── fuzzy_match.py         # Match tên tiếng Việt
 │   │   └── member_resolver.py     # Resolve member khi tạo trip
-│   ├── storage/                   # TODO Phase 1
-│   ├── tools/                     # TODO Phase 1
-│   ├── reliability/               # TODO Phase 1
-│   ├── security/                  # TODO Phase 1
-│   ├── observability/             # TODO Phase 1
-│   ├── help/                      # TODO Phase 1 (copy từ HELP_CONTENT.md)
-│   └── utils/                     # ✅ Utilities (done)
-│       ├── money.py               # Parse/format tiền VNĐ
-│       └── vn_time.py             # Timezone helper
-├── tests/                         # ✅ 103 unit tests pass, coverage 87%
-├── evals/                         # TODO Phase 1 (golden dataset)
-├── scripts/                       # TODO Phase 3 (backup, refresh token)
+│   ├── storage/                   # ✅ SQLite async + repos
+│   ├── tools/
+│   │   ├── llm.py                 # ✅ LLM + rule-based parsers
+│   │   ├── ocr.py                 # 🔲 Stub Phase 1
+│   │   ├── sheets.py              # 🔲 Stub Phase 1 (Phase 2 thật)
+│   │   ├── sheet_provisioner.py   # 🔲 Stub Phase 1
+│   │   └── sheet_projector.py     # ✅ Background loop
+│   ├── reliability/               # ✅ Circuit breaker + retry
+│   ├── security/                  # ✅ Input validation + permissions
+│   ├── observability/             # ✅ Structlog + OTel + Prometheus
+│   ├── help/                      # ✅ 9 file .md content
+│   └── utils/                     # ✅ money, vn_time
+├── tests/                         # ✅ 261 unit tests pass
+├── evals/                         # 🔲 Phase 1 (parser eval pipeline)
+├── scripts/                       # 🔲 Phase 3 (backup, cleanup)
 ├── alembic/                       # DB migration
-├── docs/runbook.md                # TODO Phase 3
-├── .env.example                   # Template cấu hình
+├── .env.example
 ├── pyproject.toml
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
-## Trạng thái hiện tại
+## Trạng thái hiện tại (22/04/2026)
 
 | Layer | Trạng thái | Notes |
 |---|---|---|
 | Domain logic | ✅ Done | fund, settlement, fuzzy_match, member_resolver |
 | Utils | ✅ Done | money parser, vn_time |
-| Tests | ✅ 103/103 pass | Coverage 87.6% |
-| Storage (DB) | 🚧 Phase 1 | SQLAlchemy + Alembic |
-| Agent core | 🚧 Phase 1 | State machine, nodes, parsers |
-| LLM integration | 🚧 Phase 1 | gpt-oss-120b via Viettel |
-| Mock channel | 🚧 Phase 1 | Test local với Claude |
-| Zalo integration | 🚧 Phase 2 | Webhook, send API |
-| Google Sheets | 🚧 Phase 2 | Sheet projector |
-| Security | 🚧 Phase 3 | Input validation, rate limit |
-| Observability | 🚧 Phase 3 | Tracing, metrics |
+| Storage (DB) | ✅ Done | SQLite async, repositories đầy đủ |
+| Reliability | ✅ Done | Circuit breaker, retry, timeouts |
+| Security | ✅ Done | Input validation, permissions |
+| Observability | ✅ Done | structlog, OpenTelemetry, Prometheus |
+| LLM integration | ✅ Done | gpt-oss-120b via Viettel + rule fallback |
+| Agent core | ✅ Done | Orchestrator + tất cả commit nodes Phase 1 |
+| Mock channel | ✅ Done | POST /mock/send sẵn sàng test |
+| Help system | ✅ Done | 9 file markdown + loader |
+| Tests | ✅ 261/261 pass | Coverage 38.7% (cần tăng) |
+| E2E tests | 🔲 Phase 1 | test_e2e_mock.py chưa viết |
+| Zalo integration | 🔲 Phase 2 | Webhook, send API |
+| Google Sheets (thật) | 🔲 Phase 2 | Drive copy template, append rows |
+| Backup / cleanup scripts | 🔲 Phase 3 | backup_db.sh, cleanup.py, ... |
+| Hardening | 🔲 Phase 3 | Rate limit, chaos test, alert rules |
+
+Xem chi tiết tại phần **🟢 TIẾN ĐỘ THỰC TẾ** trong `PLAN_v2.3.md`.
 
 ## Test
 
@@ -120,17 +139,50 @@ pytest tests/ --cov=app --cov-report=html
 
 # Chỉ domain tests (nhanh, không cần external)
 pytest tests/test_fund.py tests/test_settlement.py tests/test_fuzzy_match.py -v
+
+# Test cụ thể
+pytest tests/test_storage.py -v
+pytest tests/test_circuit_breaker.py -v
 ```
 
-## Tiếp tục với Claude Code
+## API Endpoints (Phase 1)
+
+| Method | Path | Mô tả |
+|---|---|---|
+| POST | `/mock/send` | Test bot local (không cần Zalo) |
+| GET | `/health` | Health check (DB + circuit breakers) |
+| GET | `/metrics` | Prometheus metrics |
+| POST | `/webhook/zalo` | Placeholder — Phase 2 |
+
+### Ví dụ test local
 
 ```bash
-# Sau khi clone về server
-cd travel-expense-agent
-claude  # Mở Claude Code trong thư mục này
+# Welcome message
+curl -s -X POST http://localhost:8080/mock/send \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","message":"xin chào"}' | python3 -m json.tool
 
-# Claude Code sẽ đọc PLAN_v2.3.md và tiếp tục Phase 1
+# Tạo chuyến mới
+curl -s -X POST http://localhost:8080/mock/send \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","message":"/trip_new Đà Lạt, 10-12/05, 4 người gồm đức hà long minh, 800k"}'
+
+# Xác nhận
+curl -s -X POST http://localhost:8080/mock/send \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","message":"ok"}'
+
+# Ghi chi tiêu
+curl -s -X POST http://localhost:8080/mock/send \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","message":"ăn sáng 150k"}'
 ```
+
+## Git & Auto-commit
+
+Repo: `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
+
+Claude Code được cấu hình **tự động commit + push** sau mỗi session (Stop hook trong `.claude/settings.local.json`).
 
 ## Tác giả & Context
 

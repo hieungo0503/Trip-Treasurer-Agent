@@ -17,7 +17,107 @@
 - [HELP_CONTENT.md](./HELP_CONTENT.md) — nội dung đầy đủ 9 file help markdown
 - [RELIABILITY_SECURITY.md](./RELIABILITY_SECURITY.md) — production-grade spec, checklist, code pattern
 
-**Trạng thái:** Sẵn sàng bắt đầu Phase 0.
+**Trạng thái:** Phase 1 — đang triển khai (khoảng 70% xong).
+
+---
+
+## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 22/04/2026)
+
+### Đã xong ✅
+
+**Domain layer** (`app/domain/`)
+- [x] `fund.py` — `compute_fund_balance`, `check_expense_against_fund`, `verify_fund_invariants`
+- [x] `settlement.py` — greedy minimum-transaction algorithm
+- [x] `fuzzy_match.py` — exact → normalized → Levenshtein ≤ 2
+- [x] `member_resolver.py` — resolve/reuse/placeholder member logic
+- [x] `models.py` — tất cả Pydantic models
+
+**Utils** (`app/utils/`)
+- [x] `money.py` — `parse_money`, `format_money`
+- [x] `vn_time.py` — múi giờ VN
+
+**Storage** (`app/storage/`)
+- [x] `db.py` — SQLite async + schema init
+- [x] `repositories/trip_repo.py`, `member_repo.py`, `expense_repo.py`, `conversation_repo.py`
+- [x] `repositories/__init__.py` — export `AuditLogRepository`, `ContributionRepository`, `PendingRepository`, `SheetOutboxRepository`, ...
+
+**Reliability + Security + Observability**
+- [x] `reliability/circuit_breaker.py` — self-implemented circuit breaker (`llm_circuit`, `sheets_circuit`, `drive_circuit`, `zalo_circuit`)
+- [x] `reliability/retry.py` — tenacity retry configs
+- [x] `security/input_validation.py` — Pydantic + length + encoding + prompt injection regex
+- [x] `security/permissions.py` — `@require_admin` decorator, permission checks
+- [x] `observability/logging.py` — structlog JSON setup
+- [x] `observability/metrics.py` — Prometheus counters/gauges
+- [x] `observability/tracing.py` — OpenTelemetry setup
+
+**Tools**
+- [x] `tools/llm.py` — LLM client + retry + circuit breaker + rule-based fallback; parser cho: `expense`, `topup`, `advance_expense`, `trip_new`, `initial_topup`, `classify_unknown_intent`
+- [x] `tools/ocr.py` — stub Phase 1 (confidence=0.0)
+- [x] `tools/sheets.py` — stub Phase 1 (log-only)
+- [x] `tools/sheet_provisioner.py` — stub Phase 1 (returns None, None)
+- [x] `tools/sheet_projector.py` — background loop thật, polls outbox, ready cho Phase 2
+
+**Agent**
+- [x] `agent/intents.py` — intent enum + rule-based classifier đầy đủ
+- [x] `agent/trip_resolver.py` — `resolve_active_trip`, `build_multi_trip_prompt`
+- [x] `agent/orchestrator.py` — pipeline đầy đủ: input_validation → intent → resolve_trip → parse → confirm card → commit routing; handlers cho tất cả intents Phase 1
+- [x] `agent/nodes/commit_expense.py` — ghi expense + auto_advance nếu quỹ không đủ
+- [x] `agent/nodes/commit_topup.py` — ghi extra_topup
+- [x] `agent/nodes/commit_advance_expense.py` — ghi advance + linked expense
+- [x] `agent/nodes/commit_initial_topup.py` — ghi initial_topup + auto-activate trip khi đủ
+- [x] `agent/nodes/commit_trip.py` — tạo trip + placeholder members + set status COLLECTING_TOPUP
+
+**Channel**
+- [x] `channels/mock.py` — `POST /mock/send` endpoint test local
+
+**Help content**
+- [x] `help/overview.md`, `chi.md`, `nap.md`, `ung.md`, `anh.md`, `admin.md`, `chiatien.md`, `share.md`, `welcome.md`
+
+**Entrypoint**
+- [x] `main.py` — FastAPI app, lifespan (logging, tracing, DB, sheet_projector), `/health`, `/metrics`, `/webhook/zalo` (placeholder Phase 2)
+
+**Tests** (261 passed)
+- [x] `test_fund.py`, `test_settlement.py`, `test_fuzzy_match.py`, `test_member_resolver.py`
+- [x] `test_money.py`, `test_utils.py`, `test_intents.py`
+- [x] `test_circuit_breaker.py`, `test_input_validation.py`
+- [x] `test_storage.py`
+
+**Git + CI**
+- [x] Repo init, remote `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
+- [x] Stop hook auto-commit + push sau mỗi Claude Code session
+- [x] `.gitignore` đầy đủ (secrets, .venv, __pycache__, .db, ...)
+
+---
+
+### Còn lại 🔲
+
+**Phase 1 — chưa làm:**
+- [ ] `agent/nodes/` parse nodes (parse_expense.py, parse_topup.py, ...) — hiện tại parse inline trong orchestrator, cần tách ra nếu muốn test riêng
+- [ ] `agent/nodes/trip_list.py`, `trip_view.py` — xem danh sách / chi tiết trip cũ (Flow I)
+- [ ] `security/output_filter.py`, `security/prompt_injection.py` — stub hiện tại trong input_validation
+- [ ] `reliability/timeouts.py` — timeout per-operation config
+- [ ] `utils/idempotency.py` — helper idempotency check
+- [ ] `tests/test_e2e_mock.py` — E2E test qua mock channel (40+ scenarios)
+- [ ] `tests/test_trip_resolver.py` — unit test trip resolver
+- [ ] `evals/golden_dataset.json` + `evals/run_eval.py` — parser eval pipeline
+- [ ] `scripts/backup_db.sh`, `scripts/backup_offsite.sh`, `scripts/cleanup.py`, ... — backup/maintenance scripts
+- [ ] `docs/runbook.md`, `docs/incident_response.md`
+- [ ] Coverage đạt 55%+ (hiện 38.7% — cần thêm tests cho orchestrator, commit nodes, llm parsers)
+
+**Phase 2 — chưa bắt đầu:**
+- [ ] `channels/zalo.py` — verify Zalo signature + enqueue
+- [ ] Zalo OA credentials + webhook thật
+- [ ] `tools/sheets.py` — Google Sheets API thật (append rows, rebuild tab)
+- [ ] `tools/sheet_provisioner.py` — Drive API copy template thật
+- [ ] Sheet template setup + env vars `GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`
+
+**Phase 3 — chưa bắt đầu:**
+- [ ] Hardening: rate limit, chaos test, load test
+- [ ] Backup cron setup
+- [ ] Alert rules Prometheus/Grafana
+- [ ] `/trip_export` CSV implementation
+
+---
 
 ---
 
