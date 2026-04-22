@@ -248,10 +248,11 @@ async def _dispatch(
         return
 
     # ── Guard: cần trip ──────────────────────────────────────────────────────
+    # CONFIRM / CANCEL_PENDING không cần trip — pending_id đã đủ để xử lý
     _needs_trip = {
         Intent.LOG_EXPENSE, Intent.LOG_TOPUP, Intent.LOG_ADVANCE_EXPENSE,
-        Intent.LOG_INITIAL_TOPUP, Intent.CONFIRM, Intent.AMEND,
-        Intent.CANCEL_PENDING, Intent.QUERY_FUND, Intent.QUERY_SUMMARY,
+        Intent.LOG_INITIAL_TOPUP, Intent.AMEND,
+        Intent.QUERY_FUND, Intent.QUERY_SUMMARY,
         Intent.QUERY_MINE, Intent.QUERY_TOPUP_MINE, Intent.QUERY_SETTLEMENT,
         Intent.TRIP_END, Intent.HUY_AUTO_ADVANCE, Intent.REBUILD_SHEET,
     }
@@ -528,7 +529,6 @@ async def _handle_log_expense(ctx: RequestContext, text: str) -> None:
     await db._conn.commit()
 
     # Render confirm card
-    from app.utils.vn_time import utc_to_vn
     from app.utils.money import format_money_compact
     n_split = len(trip_member_ids)
     card_lines = [

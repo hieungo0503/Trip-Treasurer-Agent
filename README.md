@@ -105,7 +105,7 @@ travel-expense-agent/
 └── docker-compose.yml
 ```
 
-## Trạng thái hiện tại (22/04/2026)
+## Trạng thái hiện tại (22/04/2026 — session 2)
 
 | Layer | Trạng thái | Notes |
 |---|---|---|
@@ -119,8 +119,8 @@ travel-expense-agent/
 | Agent core | ✅ Done | Orchestrator + tất cả commit nodes Phase 1 |
 | Mock channel | ✅ Done | POST /mock/send sẵn sàng test |
 | Help system | ✅ Done | 9 file markdown + loader |
-| Tests | ✅ 261/261 pass | Coverage 38.7% (cần tăng) |
-| E2E tests | 🔲 Phase 1 | test_e2e_mock.py chưa viết |
+| Tests | ✅ 308/308 pass | Coverage 79.6% |
+| E2E tests | ✅ Done | 35 scenarios qua mock channel |
 | Zalo integration | 🔲 Phase 2 | Webhook, send API |
 | Google Sheets (thật) | 🔲 Phase 2 | Drive copy template, append rows |
 | Backup / cleanup scripts | 🔲 Phase 3 | backup_db.sh, cleanup.py, ... |

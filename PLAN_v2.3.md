@@ -17,11 +17,11 @@
 - [HELP_CONTENT.md](./HELP_CONTENT.md) — nội dung đầy đủ 9 file help markdown
 - [RELIABILITY_SECURITY.md](./RELIABILITY_SECURITY.md) — production-grade spec, checklist, code pattern
 
-**Trạng thái:** Phase 1 — đang triển khai (khoảng 70% xong).
+**Trạng thái:** Phase 1 — hoàn thành ~95% (308 tests pass, coverage 79.6%).
 
 ---
 
-## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 22/04/2026)
+## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 22/04/2026 — session 2)
 
 ### Đã xong ✅
 
@@ -76,11 +76,13 @@
 **Entrypoint**
 - [x] `main.py` — FastAPI app, lifespan (logging, tracing, DB, sheet_projector), `/health`, `/metrics`, `/webhook/zalo` (placeholder Phase 2)
 
-**Tests** (261 passed)
+**Tests** (308 passed, coverage 79.6%)
 - [x] `test_fund.py`, `test_settlement.py`, `test_fuzzy_match.py`, `test_member_resolver.py`
 - [x] `test_money.py`, `test_utils.py`, `test_intents.py`
 - [x] `test_circuit_breaker.py`, `test_input_validation.py`
 - [x] `test_storage.py`
+- [x] `test_trip_resolver.py` — 12 unit tests cho trip_resolver
+- [x] `test_e2e_mock.py` — 35 E2E tests qua mock channel
 
 **Git + CI**
 - [x] Repo init, remote `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
@@ -89,20 +91,21 @@
 
 ---
 
+**Bugs đã phát hiện & fix trong session 2:**
+- [x] `orchestrator.py`: `CONFIRM`/`CANCEL_PENDING` sai nằm trong `_needs_trip` → trip_new confirm bị block
+- [x] `commit_expense.py`, `commit_advance_expense.py`: `confirmed_by=ctx.zalo_user_id` → FOREIGN KEY fail (phải dùng `member_id`)
+- [x] `orchestrator.py`: import `utc_to_vn` từ `vn_time` nhưng function không tồn tại → gỡ import thừa
+
 ### Còn lại 🔲
 
 **Phase 1 — chưa làm:**
-- [ ] `agent/nodes/` parse nodes (parse_expense.py, parse_topup.py, ...) — hiện tại parse inline trong orchestrator, cần tách ra nếu muốn test riêng
-- [ ] `agent/nodes/trip_list.py`, `trip_view.py` — xem danh sách / chi tiết trip cũ (Flow I)
-- [ ] `security/output_filter.py`, `security/prompt_injection.py` — stub hiện tại trong input_validation
+- [ ] `agent/nodes/` parse nodes (parse_expense.py, parse_topup.py, ...) — parse inline trong orchestrator, tách ra nếu cần test riêng
+- [ ] `security/output_filter.py`, `security/prompt_injection.py` — stub trong input_validation
 - [ ] `reliability/timeouts.py` — timeout per-operation config
 - [ ] `utils/idempotency.py` — helper idempotency check
-- [ ] `tests/test_e2e_mock.py` — E2E test qua mock channel (40+ scenarios)
-- [ ] `tests/test_trip_resolver.py` — unit test trip resolver
 - [ ] `evals/golden_dataset.json` + `evals/run_eval.py` — parser eval pipeline
-- [ ] `scripts/backup_db.sh`, `scripts/backup_offsite.sh`, `scripts/cleanup.py`, ... — backup/maintenance scripts
+- [ ] `scripts/backup_db.sh`, `scripts/backup_offsite.sh`, `scripts/cleanup.py` — backup/maintenance
 - [ ] `docs/runbook.md`, `docs/incident_response.md`
-- [ ] Coverage đạt 55%+ (hiện 38.7% — cần thêm tests cho orchestrator, commit nodes, llm parsers)
 
 **Phase 2 — chưa bắt đầu:**
 - [ ] `channels/zalo.py` — verify Zalo signature + enqueue

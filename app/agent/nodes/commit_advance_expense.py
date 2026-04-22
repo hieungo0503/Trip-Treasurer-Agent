@@ -65,7 +65,7 @@ async def commit_advance_expense(ctx: "RequestContext", pending: dict) -> str:
         occurred_at=datetime.fromisoformat(payload["occurred_at"]),
         created_at=now,
         confirmed_at=now,
-        confirmed_by=ctx.zalo_user_id,
+        confirmed_by=ctx.member_id or ctx.zalo_user_id,
         source_event_id=ctx.event_id,
         trace_id=ctx.trace_id,
         status="active",
