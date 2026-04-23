@@ -17,11 +17,11 @@
 - [HELP_CONTENT.md](./HELP_CONTENT.md) — nội dung đầy đủ 9 file help markdown
 - [RELIABILITY_SECURITY.md](./RELIABILITY_SECURITY.md) — production-grade spec, checklist, code pattern
 
-**Trạng thái:** Phase 1 — hoàn thành ~100% (370 tests pass, coverage 87%).
+**Trạng thái:** Phase 2 — hoàn thành. Phase 1: 370 tests (87%). Phase 2: +33 tests (test_zalo_channel, test_sheets).
 
 ---
 
-## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 23/04/2026 — session 3)
+## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 23/04/2026 — session 4)
 
 ### Đã xong ✅
 
@@ -53,30 +53,21 @@
 **Tools**
 - [x] `tools/llm.py` — LLM client + retry + circuit breaker + rule-based fallback; parser cho: `expense`, `topup`, `advance_expense`, `trip_new`, `initial_topup`, `classify_unknown_intent`
 - [x] `tools/ocr.py` — stub Phase 1 (confidence=0.0)
-- [x] `tools/sheets.py` — stub Phase 1 (log-only)
-- [x] `tools/sheet_provisioner.py` — stub Phase 1 (returns None, None)
-- [x] `tools/sheet_projector.py` — background loop thật, polls outbox, ready cho Phase 2
-
-**Agent**
-- [x] `agent/intents.py` — intent enum + rule-based classifier đầy đủ
-- [x] `agent/trip_resolver.py` — `resolve_active_trip`, `build_multi_trip_prompt`
-- [x] `agent/orchestrator.py` — pipeline đầy đủ: input_validation → intent → resolve_trip → parse → confirm card → commit routing; handlers cho tất cả intents Phase 1
-- [x] `agent/nodes/commit_expense.py` — ghi expense + auto_advance nếu quỹ không đủ
-- [x] `agent/nodes/commit_topup.py` — ghi extra_topup
-- [x] `agent/nodes/commit_advance_expense.py` — ghi advance + linked expense
-- [x] `agent/nodes/commit_initial_topup.py` — ghi initial_topup + auto-activate trip khi đủ
-- [x] `agent/nodes/commit_trip.py` — tạo trip + placeholder members + set status COLLECTING_TOPUP
+- [x] `tools/sheets.py` — **Phase 2**: Google Sheets API thật — append_expense_row, append_contribution_row, rebuild_sheet_from_db, update_summary_tab, ensure_headers; circuit breaker + retry + RAW write
+- [x] `tools/sheet_provisioner.py` — **Phase 2**: Drive API copy template → sheet per trip, share_sheet_with_user; graceful fallback (None, None) khi fail
+- [x] `tools/sheet_projector.py` — **Phase 2**: dispatch thật theo op (expense_row, contribution_row, rebuild_sheet, update_summary, provision_sheet retry)
 
 **Channel**
 - [x] `channels/mock.py` — `POST /mock/send` endpoint test local
+- [x] `channels/zalo.py` — **Phase 2**: HMAC-SHA256 signature verify, parse webhook (text/image/follow), send reply via Zalo OA API v3, token refresh helper; retry + circuit breaker
 
 **Help content**
 - [x] `help/overview.md`, `chi.md`, `nap.md`, `ung.md`, `anh.md`, `admin.md`, `chiatien.md`, `share.md`, `welcome.md`
 
 **Entrypoint**
-- [x] `main.py` — FastAPI app, lifespan (logging, tracing, DB, sheet_projector), `/health`, `/metrics`, `/webhook/zalo` (placeholder Phase 2)
+- [x] `main.py` — **Phase 2**: include zalo_router; `/health` thêm drive circuit + config flags; version 0.2.0
 
-**Tests** (370 passed, coverage 87%)
+**Tests** (370 + 33 = 403 passed)
 - [x] `test_fund.py`, `test_settlement.py`, `test_fuzzy_match.py`, `test_member_resolver.py`
 - [x] `test_money.py`, `test_utils.py`, `test_intents.py`
 - [x] `test_circuit_breaker.py`, `test_input_validation.py`
@@ -84,7 +75,9 @@
 - [x] `test_trip_resolver.py` — 12 unit tests cho trip_resolver
 - [x] `test_permissions.py` — 14 unit tests: `@require_admin`, `@require_trip_member`, `_reply` helper (coverage 100%)
 - [x] `test_observability.py` — 16 unit tests: logging, tracing, metrics (logging 100%, tracing 96%, metrics 100%)
-- [x] `test_e2e_mock.py` — 65 E2E scenarios qua mock channel (+30 so với session 2)
+- [x] `test_e2e_mock.py` — 65 E2E scenarios qua mock channel
+- [x] `test_zalo_channel.py` — **Phase 2**: 17 tests: signature verify (5), parse event (7), send message (4), webhook endpoint (4)
+- [x] `test_sheets.py` — **Phase 2**: 16 tests: append (4), rebuild (2), summary (1), provisioner (4), share (2)
 
 **Git + CI**
 - [x] Repo init, remote `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
@@ -117,12 +110,14 @@
 - [ ] `scripts/backup_db.sh`, `scripts/backup_offsite.sh`, `scripts/cleanup.py` — backup/maintenance
 - [ ] `docs/runbook.md`, `docs/incident_response.md`
 
-**Phase 2 — chưa bắt đầu:**
-- [ ] `channels/zalo.py` — verify Zalo signature + enqueue
-- [ ] Zalo OA credentials + webhook thật
-- [ ] `tools/sheets.py` — Google Sheets API thật (append rows, rebuild tab)
-- [ ] `tools/sheet_provisioner.py` — Drive API copy template thật
-- [ ] Sheet template setup + env vars `GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`
+**Phase 2 — ✅ HOÀN THÀNH (session 4, 23/04/2026):**
+- [x] `channels/zalo.py` — HMAC-SHA256 verify + parse + send reply
+- [x] `tools/sheets.py` — Google Sheets API thật (append, rebuild, summary)
+- [x] `tools/sheet_provisioner.py` — Drive API copy template thật + share
+- [x] `tools/sheet_projector.py` — dispatch thật theo op
+- [x] `main.py` — wire /webhook/zalo thật
+- [ ] Zalo OA credentials thật + webhook URL public (cần server HTTPS)
+- [ ] Sheet template setup + env vars (`GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`)
 
 **Phase 3 — chưa bắt đầu:**
 - [ ] Hardening: rate limit, chaos test, load test
