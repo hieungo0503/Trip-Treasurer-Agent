@@ -50,11 +50,17 @@ async def lifespan(app: FastAPI):
     from app.tools.sheet_projector import start_projector_loop, stop_projector
     projector_task = asyncio.create_task(start_projector_loop(interval_seconds=30))
 
+    # 5. Telegram polling (không cần webhook/HTTPS — bot tự gọi ra Telegram)
+    telegram_task = None
+    if settings.telegram_bot_token:
+        from app.channels.telegram import start_polling
+        telegram_task = asyncio.create_task(start_polling())
+
     log.info(
         "app.started",
         mock_channel=settings.mock_channel_enabled,
         zalo_configured=bool(settings.zalo_app_secret),
-        telegram_configured=bool(settings.telegram_bot_token),
+        telegram_mode="polling" if (settings.telegram_bot_token) else "disabled",
         google_configured=bool(settings.google_sheet_template_id),
     )
     yield
@@ -62,10 +68,17 @@ async def lifespan(app: FastAPI):
     # Shutdown
     stop_projector()
     projector_task.cancel()
+    if telegram_task:
+        telegram_task.cancel()
     try:
         await projector_task
     except asyncio.CancelledError:
         pass
+    if telegram_task:
+        try:
+            await telegram_task
+        except asyncio.CancelledError:
+            pass
     db = get_db()
     await db.close()
     log.info("app.stopped")
