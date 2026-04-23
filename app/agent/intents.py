@@ -99,16 +99,8 @@ def classify_intent(
         if re.match(r"^(huỷ|huy|cancel|❌|bỏ qua)$", tl):
             return Intent.CANCEL_PENDING
 
-    # User mới gửi initial_topup pattern ("<tên> đã nạp X") → parse trước welcome.
-    # Orchestrator sẽ tạo member + link zalo_user_id tự động.
-    if is_new_user and trip_status == TripStatus.COLLECTING_TOPUP:
-        if re.search(r"[\wÀ-ỹ]+\s+(đã\s+nạp|góp|nạp|đã\s+góp)\s+\d", tl):
-            return Intent.LOG_INITIAL_TOPUP
-
-    if is_new_user:
-        return Intent.WELCOME
-
     # ── Commands (slash commands — exact hoặc startswith) ──────────────────
+    # Phải check TRƯỚC is_new_user: admin gõ /trip_new lần đầu vẫn là new user.
     if tl.startswith("/trip_new"):
         return Intent.TRIP_NEW
     if tl in ("/trips",):
@@ -159,6 +151,13 @@ def classify_intent(
         return Intent.HELP_TOPIC
     if tl in ("/share",):
         return Intent.HELP_SHARE
+
+    # ── is_new_user: sau slash commands để /trip_new không bị chặn ──────────
+    if is_new_user and trip_status == TripStatus.COLLECTING_TOPUP:
+        if re.search(r"[\wÀ-ỹ]+\s+(đã\s+nạp|góp|nạp|đã\s+góp)\s+\d", tl):
+            return Intent.LOG_INITIAL_TOPUP
+    if is_new_user:
+        return Intent.WELCOME
 
     # ── State-dependent: AWAITING_CONFIRM ─────────────────────────────────
     if state == ConversationState.AWAITING_CONFIRM:
