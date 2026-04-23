@@ -46,6 +46,20 @@ async def commit_trip(ctx: "RequestContext", pending: dict) -> str:
     now = datetime.utcnow()
     trip_id = f"TRIP-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
 
+    # Auto-create member record for admin if this is their first action
+    if ctx.member_id is None:
+        admin_member_id = str(uuid.uuid4())
+        admin_member = Member(
+            id=admin_member_id,
+            zalo_user_id=ctx.zalo_user_id,
+            display_name=f"User-{ctx.zalo_user_id[:8]}",
+            is_admin=True,
+            active=True,
+            created_at=now,
+        )
+        await member_repo.insert(admin_member)
+        ctx.member_id = admin_member_id
+
     # Provision sheet (stub Phase 1 → returns None, None)
     sheet_id, sheet_url = await provision_trip_sheet(
         trip_name=payload["name"],
