@@ -230,11 +230,12 @@ class TestSendTelegramMessage:
 
     @pytest.mark.asyncio
     async def test_circuit_open_skips(self):
+        import time
         from app.channels.telegram import send_telegram_message
         from app.reliability.circuit_breaker import zalo_circuit, CircuitState
 
         zalo_circuit.state = CircuitState.OPEN
-        zalo_circuit._opened_at = 0
+        zalo_circuit._opened_at = time.time()  # cooldown chưa hết → giữ OPEN
 
         with patch("app.channels.telegram.get_settings") as mock_settings, \
              patch("httpx.AsyncClient") as mock_client_cls:
@@ -330,11 +331,13 @@ class TestTelegramWebhookEndpoint:
 
     def test_invalid_json_returns_400(self):
         client = _make_test_app()
-        resp = client.post(
-            "/webhook/telegram",
-            content=b"not json",
-            headers={"Content-Type": "application/json"},
-        )
+        with patch("app.channels.telegram.get_settings") as mock_settings:
+            mock_settings.return_value.telegram_webhook_secret = ""  # dev mode → bỏ qua secret
+            resp = client.post(
+                "/webhook/telegram",
+                content=b"not json",
+                headers={"Content-Type": "application/json"},
+            )
         assert resp.status_code == 400
 
     def test_unsupported_update_returns_note(self):

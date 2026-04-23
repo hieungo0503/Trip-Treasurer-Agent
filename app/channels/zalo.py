@@ -108,7 +108,7 @@ def parse_zalo_event(raw: dict[str, Any]) -> Optional[dict[str, Any]]:
     message_id = raw.get("message", {}).get("msg_id", "") or raw.get("event_id", "")
 
     if not user_id:
-        log.warning("zalo.parse.missing_user_id", event=event_name)
+        log.warning("zalo.parse.missing_user_id", zalo_event=event_name)
         return None
 
     if event_name == "user_send_text":

@@ -155,7 +155,7 @@ def parse_telegram_update(update: dict[str, Any]) -> Optional[dict[str, Any]]:
             "text": text,
             "attachments": attachments,
         },
-        "_source": "telegram",  # orchestrator dùng để resolve send_fn
+        "_channel": "telegram",  # orchestrator dùng để resolve send_fn
     }
 
 
@@ -227,67 +227,6 @@ async def send_telegram_message_safe(chat_id: str, text: str) -> None:
         await send_telegram_message(chat_id, text)
     except Exception as e:
         log.error("telegram.send_safe.failed", chat_id=chat_id, error=str(e))
-
-
-# ── Polling mode ──────────────────────────────────────────────────────────────
-
-async def start_polling() -> None:
-    """
-    Long-polling loop thay thế webhook — không cần HTTPS, không cần public URL.
-    Gọi từ app lifespan. Tự xóa webhook cũ nếu có.
-    """
-    from app.agent.orchestrator import handle_event
-
-    settings = get_settings()
-    token = settings.telegram_bot_token
-    if not token:
-        log.warning("telegram.polling.no_token")
-        return
-
-    # Xóa webhook cũ (nếu có) — Telegram không gửi getUpdates khi webhook active
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(_api_url(token, "deleteWebhook"), json={"drop_pending_updates": False})
-        log.info("telegram.polling.webhook_cleared")
-    except Exception as e:
-        log.warning("telegram.polling.clear_webhook_failed", error=str(e))
-
-    offset = 0
-    log.info("telegram.polling.started")
-
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=35.0) as client:
-                resp = await client.get(
-                    _api_url(token, "getUpdates"),
-                    params={
-                        "offset": offset,
-                        "timeout": 30,
-                        "allowed_updates": ["message", "edited_message"],
-                    },
-                )
-            data = resp.json()
-            if not data.get("ok"):
-                log.error("telegram.polling.api_error", response=data)
-                await asyncio.sleep(5)
-                continue
-
-            for update in data.get("result", []):
-                offset = update["update_id"] + 1
-                event = parse_telegram_update(update)
-                if event:
-                    zalo_messages_received.labels(event_type=f"tg_{event['event_name']}").inc()
-                    try:
-                        await handle_event(event)
-                    except Exception as e:
-                        log.error("telegram.polling.handler_error", error=str(e))
-
-        except asyncio.CancelledError:
-            log.info("telegram.polling.stopped")
-            return
-        except Exception as e:
-            log.error("telegram.polling.exception", error=str(e))
-            await asyncio.sleep(5)
 
 
 # ── Polling mode ──────────────────────────────────────────────────────────────

@@ -97,8 +97,9 @@ class TestAppendExpenseRow:
         from app.tools.sheets import append_expense_row, set_sheets_service
         from app.reliability.circuit_breaker import sheets_circuit, CircuitState
 
+        import time
         sheets_circuit.state = CircuitState.OPEN
-        sheets_circuit._opened_at = 0
+        sheets_circuit._opened_at = time.time()
 
         mock_svc = _mock_sheets_svc()
         set_sheets_service(mock_svc)
@@ -327,8 +328,9 @@ class TestProvisionTripSheet:
         from app.tools.sheet_provisioner import provision_trip_sheet
         from app.reliability.circuit_breaker import drive_circuit, CircuitState
 
+        import time
         drive_circuit.state = CircuitState.OPEN
-        drive_circuit._opened_at = 0
+        drive_circuit._opened_at = time.time()
 
         with patch("app.tools.sheet_provisioner.get_settings") as mock_settings:
             mock_settings.return_value.google_sheet_template_id = "template_123"
