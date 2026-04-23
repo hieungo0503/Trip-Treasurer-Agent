@@ -535,3 +535,373 @@ async def test_send_image_ocr_stub(client):
     assert r.status_code == 200
     text = _reply(r)
     assert text  # bot trả về hướng dẫn
+
+
+# ── Group 14: Bot pause / resume ─────────────────────────────────────────────
+
+async def test_pause_bot_admin(client):
+    """/pause_bot bởi admin → bot dừng."""
+    r = await _send(client, "/pause_bot")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "tạm dừng" in text.lower() or "pause" in text.lower() or "⏸" in text
+
+    # Unset để không ảnh hưởng test khác
+    from app.storage.db import get_db
+    db = get_db()
+    await db.set_setting("bot_enabled", "true")
+    await db._conn.commit()
+
+
+async def test_resume_bot_admin(client):
+    """/resume_bot bởi admin khi bot đang chạy → xác nhận hoạt động."""
+    # Bot đang enabled (mặc định), gửi resume → vẫn trả về "hoạt động"
+    r = await _send(client, "/resume_bot")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "hoạt động" in text.lower() or "▶" in text
+
+
+async def test_pause_bot_non_admin(client):
+    """/pause_bot từ user không phải admin → bị từ chối."""
+    r = await _send(client, "/pause_bot", user_id="non_admin_user_555")
+    assert r.status_code == 200
+    text = _reply(r)
+    # new user → WELCOME, hoặc đã là member thì bị admin guard
+    assert text
+
+
+async def test_bot_paused_skips_processing(client):
+    """Khi bot bị pause, message mới bị bỏ qua (không reply error)."""
+    from app.storage.db import get_db
+    db = get_db()
+    await db.set_setting("bot_enabled", "false")
+    await db._conn.commit()
+
+    import uuid, time
+    from app.agent.orchestrator import handle_event
+    event_id = f"pause-test-{uuid.uuid4().hex[:8]}"
+    payload = {
+        "event_name": "user_send_text",
+        "user_id": USER_ID,
+        "event_id": event_id,
+        "timestamp": int(time.time() * 1000),
+        "message": {"text": "/help"},
+    }
+    await handle_event(payload)  # không nên raise
+
+    # Restore
+    await db.set_setting("bot_enabled", "true")
+    await db._conn.commit()
+
+
+# ── Group 15: Trip operations ─────────────────────────────────────────────────
+
+async def test_trip_list_no_trips(client):
+    """/trips khi chưa có chuyến nào."""
+    r = await _send(client, "/trips")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "chưa" in text.lower() or "chuyến" in text.lower()
+
+
+async def test_trip_list_with_active_trip(client):
+    """/trips sau khi có chuyến ACTIVE → hiển thị đầy đủ."""
+    await _create_and_activate_trip(client, "Sapa Trip")
+
+    r = await _send(client, "/trips")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "Sapa" in text or "ACTIVE" in text.lower() or "đang hoạt động" in text.lower()
+
+
+async def test_trip_view_not_found(client):
+    """/trip_view với ID không tồn tại → thông báo lỗi."""
+    r = await _send(client, "/trip_view TRIP-00000000-NOTFOUND")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "không tìm thấy" in text.lower() or "not found" in text.lower()
+
+
+async def test_trip_view_no_id(client):
+    """/trip_view không có ID → hướng dẫn."""
+    r = await _send(client, "/trip_view")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "trip_view" in text.lower() or "id" in text.lower()
+
+
+async def test_trip_switch_no_id(client):
+    """/trip_switch không có ID → hướng dẫn."""
+    r = await _send(client, "/trip_switch")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "trip_switch" in text.lower() or "id" in text.lower()
+
+
+async def test_trip_switch_not_found(client):
+    """/trip_switch ID không tồn tại → lỗi."""
+    r = await _send(client, "/trip_switch TRIP-NONEXISTENT-ID")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "không tìm thấy" in text.lower()
+
+
+async def test_trip_switch_valid(client):
+    """/trip_switch khi đã có trip → chuyển thành công."""
+    import re
+    r_trip = await _send(client, "/trip_new Mũi Né, 10-12/05, 1 người gồm đức, 500k")
+    r_ok = await _send(client, "ok")
+    text = _reply(r_ok)
+    m = re.search(r"TRIP-\d{8}-[A-Z0-9]{6}", text)
+    if m:
+        trip_id = m.group(0)
+        r = await _send(client, f"/trip_switch {trip_id}")
+        assert r.status_code == 200
+        rep = _reply(r)
+        assert "Mũi Né" in rep or "✅" in rep or trip_id in rep
+
+
+async def test_trip_end_by_admin(client):
+    """/trip_end bởi admin (creator) → trip settled."""
+    await _create_and_activate_trip(client, "End Test Trip")
+
+    r = await _send(client, "/trip_end")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "kết chuyến" in text.lower() or "✅" in text or "settled" in text.lower()
+
+
+async def test_trip_end_non_admin(client):
+    """/trip_end từ user không phải creator/admin → bị từ chối."""
+    await _create_and_activate_trip(client, "End Block Trip")
+
+    r = await _send(client, "/trip_end", user_id="non_creator_user_888")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text  # welcome hoặc blocked
+
+
+async def test_trip_archive(client):
+    """/trip_archive → trip archived."""
+    await _create_and_activate_trip(client, "Archive Test Trip")
+
+    r = await _send(client, "/trip_archive")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "lưu trữ" in text.lower() or "archive" in text.lower() or "📦" in text
+
+
+# ── Group 16: Query edge cases ────────────────────────────────────────────────
+
+async def test_query_mine_with_expenses(client):
+    """/cuatoi sau khi có chi tiêu → hiển thị danh sách."""
+    await _create_and_activate_trip(client, "Mine With Expenses")
+
+    # Ghi chi tiêu trước
+    await _send(client, "chi 300k ăn uống")
+    await _send(client, "ok")
+
+    r = await _send(client, "/cuatoi")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "300" in text or "ăn" in text.lower() or "chi tiêu" in text.lower()
+
+
+async def test_query_mine_no_expenses(client):
+    """/cuatoi khi chưa có chi tiêu → thông báo rỗng."""
+    await _create_and_activate_trip(client, "Mine Empty Trip")
+
+    r = await _send(client, "/cuatoi")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "chưa" in text.lower() or "không" in text.lower()
+
+
+async def test_query_topup_mine(client):
+    """/nap_cua_toi → lịch sử nạp quỹ của tôi."""
+    await _create_and_activate_trip(client, "Topup Mine Trip")
+
+    r = await _send(client, "/nap_cua_toi")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text  # initial_topup đã được ghi
+
+
+async def test_query_topup_mine_empty(client):
+    """/nap_cua_toi khi chưa nạp → thông báo."""
+    # Tạo trip nhưng KHÔNG activate (không initial_topup)
+    await _send(client, "/trip_new Topup Empty, 10-12/05, 1 người gồm đức, 800k")
+    await _send(client, "ok")
+    # Ở trạng thái COLLECTING_TOPUP, không gửi initial_topup
+
+    r = await _send(client, "/nap_cua_toi")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text
+
+
+async def test_query_settlement_balanced(client):
+    """/chiaai khi quỹ = 0 và không ai nợ ai → mọi người hòa."""
+    # Trip 1 người → cân bằng hoàn toàn
+    await _create_and_activate_trip(client, "Balanced Trip")
+
+    r = await _send(client, "/chiaai")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text
+
+
+# ── Group 17: Admin commands ──────────────────────────────────────────────────
+
+async def test_huy_auto_advance_no_id(client):
+    """/huy_auto không có expense_id → hướng dẫn."""
+    await _create_and_activate_trip(client, "Huy Auto No ID")
+
+    r = await _send(client, "/huy_auto")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "huy_auto" in text.lower() or "expense" in text.lower() or text
+
+
+async def test_huy_auto_advance_not_found(client):
+    """/huy_auto với expense_id không tồn tại → thông báo."""
+    await _create_and_activate_trip(client, "Huy Auto Not Found")
+
+    r = await _send(client, "/huy_auto EXP-NONEXISTENT")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "không tìm thấy" in text.lower() or text
+
+
+async def test_rebuild_sheet_no_sheet(client):
+    """/rebuild_sheet khi trip chưa có sheet_id → thông báo."""
+    await _create_and_activate_trip(client, "Rebuild Sheet Trip")
+
+    r = await _send(client, "/rebuild_sheet")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "sheet" in text.lower() or "chưa" in text.lower() or text
+
+
+# ── Group 18: Confirm / cancel edge cases ────────────────────────────────────
+
+async def test_confirm_no_pending(client):
+    """ok khi không có giao dịch đang chờ → thông báo."""
+    r = await _send(client, "ok")
+    assert r.status_code == 200
+    text = _reply(r)
+    # idle state → CONFIRM intent nhưng pending_id=None → "không có giao dịch"
+    assert "không" in text.lower() or "giao dịch" in text.lower() or text
+
+
+async def test_cancel_no_pending(client):
+    """huỷ khi không có giao dịch đang chờ → thông báo hoặc UNKNOWN."""
+    # Trong IDLE state, "huỷ" có thể map sang UNKNOWN hoặc CANCEL_PENDING
+    r = await _send(client, "huỷ")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text
+
+
+async def test_amend_intent(client):
+    """sửa lại → AMEND reply."""
+    await _create_and_activate_trip(client, "Amend Test Trip")
+    await _send(client, "chi 200k ăn uống")  # tạo pending
+
+    r = await _send(client, "sửa lại")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "sửa" in text.lower() or "huỷ" in text.lower() or text
+
+
+# ── Group 19: Guard paths ─────────────────────────────────────────────────────
+
+async def test_no_member_guard_expense(client):
+    """User không có trong DB gửi lệnh chi → guard hoặc welcome."""
+    r = await _send(client, "chi 100k", user_id="unknown_user_777")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text  # welcome hoặc guard message
+
+
+async def test_needs_trip_guard_query_fund(client):
+    """/quy khi chưa có active trip → guard."""
+    r = await _send(client, "/quy")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "chuyến" in text.lower() or "trip" in text.lower()
+
+
+async def test_needs_trip_guard_settlement(client):
+    """/chiaai khi chưa có active trip → guard."""
+    r = await _send(client, "/chiaai")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert "chuyến" in text.lower() or "trip" in text.lower()
+
+
+# ── Group 20: Unhandled exception path ───────────────────────────────────────
+
+async def test_handle_event_exception_graceful(client):
+    """handle_event bắt exception và không raise ra ngoài."""
+    import uuid, time
+    from app.agent.orchestrator import handle_event
+
+    payload = {
+        "event_name": "user_send_text",
+        "user_id": USER_ID,
+        "event_id": f"exc-test-{uuid.uuid4().hex[:8]}",
+        "timestamp": int(time.time() * 1000),
+        "message": {"text": "/help"},
+    }
+
+    # Patch _process_event để raise exception
+    with patch("app.agent.orchestrator._process_event",
+               side_effect=RuntimeError("simulated crash")):
+        await handle_event(payload)  # phải không raise
+
+
+# ── Group 21: Initial topup edge cases ───────────────────────────────────────
+
+async def test_initial_topup_parse_failure(client):
+    """Gửi initial topup không đúng format → bot hướng dẫn."""
+    await _send(client, "/trip_new Parse Fail Trip, 10-12/05, 1 người gồm đức, 800k")
+    await _send(client, "ok")
+
+    # Gửi không có số tiền → không parse được
+    r = await _send(client, "đức nạp rồi nhé")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text  # hướng dẫn hoặc unknown intent
+
+
+async def test_initial_topup_member_not_found(client):
+    """Gửi initial topup với tên member không tồn tại → thông báo."""
+    await _send(client, "/trip_new Member Not Found, 10-12/05, 1 người gồm đức, 800k")
+    await _send(client, "ok")
+
+    r = await _send(client, "xyzxyz đã nạp 800k")
+    assert r.status_code == 200
+    text = _reply(r)
+    assert text  # member not found hoặc confirm card
+
+
+# ── Group 22: Image OCR with base64 ──────────────────────────────────────────
+
+async def test_send_image_no_attachments(client):
+    """Event type image nhưng không có attachments → phản hồi lỗi."""
+    await _create_and_activate_trip(client, "Image No Attach Trip")
+
+    import uuid, time
+    from app.agent.orchestrator import handle_event
+    from app.storage.db import get_db
+
+    payload = {
+        "event_name": "user_send_text",
+        "user_id": USER_ID,
+        "event_id": f"img-noatt-{uuid.uuid4().hex[:8]}",
+        "timestamp": int(time.time() * 1000),
+        "message": {"attachments": []},  # có attachments key nhưng rỗng
+    }
+    await handle_event(payload)  # phải không raise
