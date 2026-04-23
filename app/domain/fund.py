@@ -260,9 +260,15 @@ def verify_fund_invariants(
         return violations  # early return, không check thêm
 
     # 2. Σ net_i = fund_balance
+    # Tolerance = Σ (expense % split_count) because integer division floors each share
+    rounding_tolerance = sum(
+        e.amount_vnd % len(e.split_member_ids)
+        for e in active_expenses
+        if e.split_member_ids
+    ) or 1
     member_balances = compute_all_member_balances(members, active_contribs, active_expenses)
     sum_nets = sum(b.net for b in member_balances)
-    if abs(sum_nets - fund) > 1:  # tolerance 1đ cho integer rounding
+    if abs(sum_nets - fund) > rounding_tolerance:
         violations.append(InvariantViolation(
             "sum_nets_not_equal_fund",
             f"Σ net_i={sum_nets} ≠ fund_balance={fund}"

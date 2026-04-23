@@ -152,8 +152,9 @@ async def _process_event(
 
     # ── 5. Resolve active trip ──────────────────────────────────────────────
     trip_status = None
+    trip_repo = TripRepository(db)
+
     if member and active_trip_id:
-        trip_repo = TripRepository(db)
         trip = await trip_repo.get_by_id(active_trip_id)
         if trip and await trip_repo.is_member(active_trip_id, member.id):
             trip_status = trip.status
@@ -162,12 +163,19 @@ async def _process_event(
             await conv_repo.set_active_trip(zalo_user_id, None)
 
     elif member and not active_trip_id:
-        trip_repo = TripRepository(db)
         active_trips = await trip_repo.get_active_trips_for_member(member.id)
         if len(active_trips) == 1:
             active_trip_id = active_trips[0].id
             trip_status = active_trips[0].status
             await conv_repo.set_active_trip(zalo_user_id, active_trip_id)
+
+    elif is_new_user:
+        # User mới chưa có member record — kiểm tra có trip nào đang COLLECTING_TOPUP không.
+        # Nếu có → cho intent classifier biết để parse "<tên> đã nạp X".
+        collecting_trips = await trip_repo.get_trips_by_status("collecting_topup")
+        if collecting_trips:
+            trip_status = collecting_trips[0].status
+            active_trip_id = collecting_trips[0].id
 
     ctx = RequestContext(
         trace_id=trace_id,
@@ -239,7 +247,10 @@ async def _dispatch(
         return
 
     # ── Guard: cần member ───────────────────────────────────────────────────
-    _no_member_ok = {Intent.WELCOME, Intent.HELP_OVERVIEW, Intent.HELP_TOPIC, Intent.HELP_SHARE, Intent.TRIP_NEW}
+    # LOG_INITIAL_TOPUP: user mới chưa có member record vẫn được phép nạp đầu.
+    # Handler sẽ tạo member + link zalo_user_id tự động khi tìm thấy placeholder khớp tên.
+    # CONFIRM/CANCEL: new user confirming initial_topup has pending_id but no member_id yet
+    _no_member_ok = {Intent.WELCOME, Intent.HELP_OVERVIEW, Intent.HELP_TOPIC, Intent.HELP_SHARE, Intent.TRIP_NEW, Intent.LOG_INITIAL_TOPUP, Intent.CONFIRM, Intent.CANCEL_PENDING}
     if ctx.member_id is None and intent not in _no_member_ok:
         await ctx.reply(
             "⚠️ Bạn chưa được thêm vào chuyến nào.\n"

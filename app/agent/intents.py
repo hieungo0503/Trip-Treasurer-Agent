@@ -86,11 +86,27 @@ def classify_intent(
     if is_image:
         return Intent.LOG_EXPENSE_IMAGE
 
-    if is_new_user:
-        return Intent.WELCOME
-
     t = text.strip()
     tl = t.lower()
+
+    # AWAITING_CONFIRM phải check trước is_new_user: user mới đang chờ confirm
+    # (vd: vừa gửi "Hà đã nạp 500k") cũng cần "ok"/"huỷ" được nhận đúng.
+    if state == ConversationState.AWAITING_CONFIRM:
+        if re.match(r"^(ok|oke|okay|đồng ý|xác nhận|✅|khởi động)$", tl):
+            return Intent.CONFIRM
+        if tl.startswith("sửa "):
+            return Intent.AMEND
+        if re.match(r"^(huỷ|huy|cancel|❌|bỏ qua)$", tl):
+            return Intent.CANCEL_PENDING
+
+    # User mới gửi initial_topup pattern ("<tên> đã nạp X") → parse trước welcome.
+    # Orchestrator sẽ tạo member + link zalo_user_id tự động.
+    if is_new_user and trip_status == TripStatus.COLLECTING_TOPUP:
+        if re.search(r"[\wÀ-ỹ]+\s+(đã\s+nạp|góp|nạp|đã\s+góp)\s+\d", tl):
+            return Intent.LOG_INITIAL_TOPUP
+
+    if is_new_user:
+        return Intent.WELCOME
 
     # ── Commands (slash commands — exact hoặc startswith) ──────────────────
     if tl.startswith("/trip_new"):

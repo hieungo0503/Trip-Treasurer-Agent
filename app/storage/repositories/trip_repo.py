@@ -55,6 +55,14 @@ class TripRepository:
         )
         return [_row_to_trip(r) for r in rows]
 
+    async def get_trips_by_status(self, status: str) -> list[Trip]:
+        """Tìm tất cả trips theo status — dùng để detect COLLECTING_TOPUP cho user mới."""
+        rows = await self._db.fetch_all(
+            "SELECT * FROM trips WHERE status = ? ORDER BY created_at DESC",
+            (status,),
+        )
+        return [_row_to_trip(r) for r in rows]
+
     async def get_all_trips_for_member(self, member_id: str) -> list[Trip]:
         rows = await self._db.fetch_all(
             """

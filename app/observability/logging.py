@@ -16,7 +16,6 @@ def setup_logging(log_level: str = "INFO") -> None:
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.stdlib.add_logger_name,
         _add_trace_context,
     ]
 

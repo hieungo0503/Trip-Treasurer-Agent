@@ -107,6 +107,11 @@ async def commit_initial_topup(ctx: "RequestContext", pending: dict) -> str:
         log.error("commit_initial_topup.invariant_violated", violations=[v.name for v in violations])
         raise RuntimeError(f"Fund invariant violated: {violations[0].name}")
 
+    # Link zalo_user_id → placeholder member (only once, when zalo_user_id not yet set)
+    placeholder = await member_repo.get_by_id(payload["member_id"])
+    if placeholder and placeholder.zalo_user_id is None and ctx.zalo_user_id:
+        await member_repo.link_zalo(payload["member_id"], ctx.zalo_user_id)
+
     await pending_repo.confirm(ctx.pending_id)
     await conv_repo.set_state(ctx.zalo_user_id, "idle", None)
 
