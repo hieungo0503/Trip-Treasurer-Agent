@@ -105,22 +105,22 @@ travel-expense-agent/
 └── docker-compose.yml
 ```
 
-## Trạng thái hiện tại (22/04/2026 — session 2)
+## Trạng thái hiện tại (23/04/2026 — session 3)
 
 | Layer | Trạng thái | Notes |
 |---|---|---|
 | Domain logic | ✅ Done | fund, settlement, fuzzy_match, member_resolver |
 | Utils | ✅ Done | money parser, vn_time |
 | Storage (DB) | ✅ Done | SQLite async, repositories đầy đủ |
-| Reliability | ✅ Done | Circuit breaker, retry, timeouts |
-| Security | ✅ Done | Input validation, permissions |
-| Observability | ✅ Done | structlog, OpenTelemetry, Prometheus |
+| Reliability | ✅ Done | Circuit breaker 100% cov, retry |
+| Security | ✅ Done | Input validation 98%, permissions **100%** |
+| Observability | ✅ Done | logging **100%**, tracing **96%**, metrics 100% |
 | LLM integration | ✅ Done | gpt-oss-120b via Viettel + rule fallback |
-| Agent core | ✅ Done | Orchestrator + tất cả commit nodes Phase 1 |
+| Agent core | ✅ Done | Orchestrator 84% cov + tất cả commit nodes |
 | Mock channel | ✅ Done | POST /mock/send sẵn sàng test |
 | Help system | ✅ Done | 9 file markdown + loader |
-| Tests | ✅ 308/308 pass | Coverage 79.6% |
-| E2E tests | ✅ Done | 35 scenarios qua mock channel |
+| Tests | ✅ **370/370 pass** | Coverage **87%** (+62 tests session 3) |
+| E2E tests | ✅ Done | **65 scenarios** qua mock channel |
 | Zalo integration | 🔲 Phase 2 | Webhook, send API |
 | Google Sheets (thật) | 🔲 Phase 2 | Drive copy template, append rows |
 | Backup / cleanup scripts | 🔲 Phase 3 | backup_db.sh, cleanup.py, ... |

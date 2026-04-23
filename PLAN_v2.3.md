@@ -17,11 +17,11 @@
 - [HELP_CONTENT.md](./HELP_CONTENT.md) — nội dung đầy đủ 9 file help markdown
 - [RELIABILITY_SECURITY.md](./RELIABILITY_SECURITY.md) — production-grade spec, checklist, code pattern
 
-**Trạng thái:** Phase 1 — hoàn thành ~95% (308 tests pass, coverage 79.6%).
+**Trạng thái:** Phase 1 — hoàn thành ~100% (370 tests pass, coverage 87%).
 
 ---
 
-## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 22/04/2026 — session 2)
+## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 23/04/2026 — session 3)
 
 ### Đã xong ✅
 
@@ -76,13 +76,15 @@
 **Entrypoint**
 - [x] `main.py` — FastAPI app, lifespan (logging, tracing, DB, sheet_projector), `/health`, `/metrics`, `/webhook/zalo` (placeholder Phase 2)
 
-**Tests** (308 passed, coverage 79.6%)
+**Tests** (370 passed, coverage 87%)
 - [x] `test_fund.py`, `test_settlement.py`, `test_fuzzy_match.py`, `test_member_resolver.py`
 - [x] `test_money.py`, `test_utils.py`, `test_intents.py`
 - [x] `test_circuit_breaker.py`, `test_input_validation.py`
 - [x] `test_storage.py`
 - [x] `test_trip_resolver.py` — 12 unit tests cho trip_resolver
-- [x] `test_e2e_mock.py` — 35 E2E tests qua mock channel
+- [x] `test_permissions.py` — 14 unit tests: `@require_admin`, `@require_trip_member`, `_reply` helper (coverage 100%)
+- [x] `test_observability.py` — 16 unit tests: logging, tracing, metrics (logging 100%, tracing 96%, metrics 100%)
+- [x] `test_e2e_mock.py` — 65 E2E scenarios qua mock channel (+30 so với session 2)
 
 **Git + CI**
 - [x] Repo init, remote `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
@@ -95,6 +97,14 @@
 - [x] `orchestrator.py`: `CONFIRM`/`CANCEL_PENDING` sai nằm trong `_needs_trip` → trip_new confirm bị block
 - [x] `commit_expense.py`, `commit_advance_expense.py`: `confirmed_by=ctx.zalo_user_id` → FOREIGN KEY fail (phải dùng `member_id`)
 - [x] `orchestrator.py`: import `utc_to_vn` từ `vn_time` nhưng function không tồn tại → gỡ import thừa
+
+**Coverage improvements trong session 3 (+62 tests, coverage 79.6% → 87%):**
+- [x] `security/permissions.py`: 0% → 100% (14 tests mới trong `test_permissions.py`)
+- [x] `observability/logging.py`: 53% → 100% (fix: dùng `patch("structlog.configure")` để tránh global state contamination)
+- [x] `observability/tracing.py`: 38% → 96% (fix: `patch("app.observability.tracing.log")` vì `add_logger_name` + `PrintLoggerFactory` không tương thích)
+- [x] `observability/metrics.py`: 100% (đã đủ qua test_observability.py)
+- [x] `agent/orchestrator.py`: 67% → 84% (30 E2E scenarios mới trong `test_e2e_mock.py` covering bot pause/resume, admin commands, query paths, exception handling, image OCR, confirm/cancel edge cases)
+- [x] Stop hook auto-commit message: đổi từ `auto: $(date)` sang format `feat+test(N files): name1,name2,name3`
 
 ### Còn lại 🔲
 
