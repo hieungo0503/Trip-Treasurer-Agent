@@ -155,7 +155,7 @@ def parse_telegram_update(update: dict[str, Any]) -> Optional[dict[str, Any]]:
             "text": text,
             "attachments": attachments,
         },
-        "_channel": "telegram",  # tag để orchestrator biết dùng send_telegram_message
+        "_source": "telegram",  # orchestrator dùng để resolve send_fn
     }
 
 
@@ -286,6 +286,71 @@ async def start_polling() -> None:
         except asyncio.CancelledError:
             log.info("telegram.polling.stopped")
             return
+        except Exception as e:
+            log.error("telegram.polling.exception", error=str(e))
+            await asyncio.sleep(5)
+
+
+# ── Polling mode ──────────────────────────────────────────────────────────────
+
+async def start_polling() -> None:
+    """
+    Long-polling loop — thay thế cho webhook khi không có HTTPS public.
+    Tự động xoá webhook cũ (nếu có) trước khi bắt đầu poll.
+    Gọi từ app lifespan, chạy mãi đến khi bị cancel.
+    """
+    from app.agent.orchestrator import handle_event
+
+    settings = get_settings()
+    token = settings.telegram_bot_token
+    if not token:
+        log.warning("telegram.polling.no_token")
+        return
+
+    # Xoá webhook cũ để tránh conflict
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(_api_url(token, "deleteWebhook"), json={"drop_pending_updates": True})
+        log.info("telegram.polling.webhook_cleared")
+    except Exception as e:
+        log.warning("telegram.polling.clear_webhook_failed", error=str(e))
+
+    offset = 0
+    log.info("telegram.polling.started")
+
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=35.0) as client:
+                resp = await client.get(
+                    _api_url(token, "getUpdates"),
+                    params={
+                        "offset": offset,
+                        "timeout": 30,
+                        "allowed_updates": ["message", "edited_message"],
+                    },
+                )
+            data = resp.json()
+
+            if not data.get("ok"):
+                log.error("telegram.polling.api_error", response=data)
+                await asyncio.sleep(5)
+                continue
+
+            for update in data.get("result", []):
+                offset = update["update_id"] + 1
+                event = parse_telegram_update(update)
+                if event:
+                    zalo_messages_received.labels(event_type=f"tg_{event['event_name']}").inc()
+                    try:
+                        await handle_event(event)
+                    except Exception as e:
+                        log.error("telegram.polling.handler_error", error=str(e))
+
+        except asyncio.CancelledError:
+            log.info("telegram.polling.stopped")
+            return
+        except httpx.TimeoutException:
+            pass  # long-poll timeout bình thường, tiếp tục
         except Exception as e:
             log.error("telegram.polling.exception", error=str(e))
             await asyncio.sleep(5)

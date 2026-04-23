@@ -142,8 +142,19 @@
 - [x] `main.py` — wire /webhook/zalo + /webhook/telegram
 - [ ] **Còn lại để deploy thật**: Zalo OA credentials + webhook URL public (HTTPS server hoặc ngrok)
 - [ ] **Còn lại để deploy thật**: Sheet template setup + `GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`
-- [ ] **Còn lại để deploy thật**: Telegram webhook register (`POST /webhook/telegram/register_webhook`) với public HTTPS URL
+- [x] **Telegram đang dùng polling mode** (không cần HTTPS/public URL) — xem ghi chú kỹ thuật bên dưới
+- [ ] **TODO sau**: Chuyển sang webhook mode khi có HTTPS endpoint riêng (port 443/8443 hoặc LB route `/webhook/telegram` về server này)
 - [ ] **Còn lại**: Push code lên GitHub (cần setup PAT hoặc SSH key: `gh auth login`)
+
+> **📝 Ghi chú kỹ thuật — Telegram Polling Mode (23/04/2026):**
+> Server `viettel-innovationlab.io.vn` đứng sau Viettel LB (LB xử lý TLS, không expose port 443 trực tiếp).
+> Thay vì cấu hình LB route `/webhook/telegram` → server này, tạm thời dùng **long-polling**:
+> - Bot gọi `getUpdates?timeout=30` ra Telegram mỗi 30s (outbound only, không cần inbound port)
+> - Latency ~1s, đủ cho bot nhóm bạn bè
+> - Code: `channels/telegram.py::start_polling()`, khởi động từ `main.py` lifespan
+> - Khi muốn chuyển sang webhook: mở port 8443 trên firewall + certbot standalone, hoặc nhờ LB admin thêm route
+>
+> **Chuyển sang webhook khi nào:** production với >100 user/ngày, hoặc cần latency <500ms.
 
 **Phase 3 — chưa bắt đầu:**
 - [ ] Hardening: rate limit, chaos test, load test

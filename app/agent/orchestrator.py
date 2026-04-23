@@ -71,8 +71,14 @@ def _resolve_send_fn(event_source: str) -> Callable:
     if event_source == "mock":
         from app.channels.mock import send_mock_message
         return send_mock_message
-    # Phase 2: Zalo send
-    from app.channels.mock import send_mock_message  # fallback
+    if event_source == "telegram":
+        from app.channels.telegram import send_telegram_message_safe
+        return send_telegram_message_safe
+    if event_source == "zalo":
+        from app.channels.zalo import send_zalo_message
+        return send_zalo_message
+    # fallback
+    from app.channels.mock import send_mock_message
     return send_mock_message
 
 
