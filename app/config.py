@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     backup_retention_weekly: int = 4
     backup_retention_monthly: int = 12
 
+    # ── Telegram Bot ─────────────────────────────────────────────
+    telegram_bot_token: str = ""
+    telegram_webhook_url: str = ""      # https://your-server.com/webhook/telegram
+    telegram_webhook_secret: str = ""   # chuỗi tự chọn để verify header
+
     # ── Dev / Test ────────────────────────────────────────────────
     mock_channel_enabled: bool = False
     test_mode: bool = False

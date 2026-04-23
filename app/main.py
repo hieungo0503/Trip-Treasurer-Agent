@@ -2,11 +2,12 @@
 FastAPI entry point.
 
 Routes:
-    GET  /webhook/zalo  — Zalo OA webhook verification (challenge)
-    POST /webhook/zalo  — nhận webhook từ Zalo OA + background process
-    POST /mock/send     — mock channel để test local
-    GET  /health        — health check
-    GET  /metrics       — Prometheus metrics
+    GET  /webhook/zalo      — Zalo OA webhook verification (challenge)
+    POST /webhook/zalo      — nhận webhook từ Zalo OA + background process
+    POST /webhook/telegram  — nhận webhook từ Telegram Bot
+    POST /mock/send         — mock channel để test local
+    GET  /health            — health check
+    GET  /metrics           — Prometheus metrics
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
         "app.started",
         mock_channel=settings.mock_channel_enabled,
         zalo_configured=bool(settings.zalo_app_secret),
+        telegram_configured=bool(settings.telegram_bot_token),
         google_configured=bool(settings.google_sheet_template_id),
     )
     yield
@@ -71,14 +73,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Trip Treasurer Agent",
-    description="AI Agent quản lý chi tiêu du lịch nhóm qua Zalo",
-    version="0.2.0",
+    description="AI Agent quản lý chi tiêu du lịch nhóm qua Zalo / Telegram",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
-# ── Zalo webhook channel (Phase 2) ────────────────────────────────────────────
+# ── Zalo webhook channel ──────────────────────────────────────────────────────
 from app.channels.zalo import router as zalo_router
 app.include_router(zalo_router)
+
+# ── Telegram Bot channel ──────────────────────────────────────────────────────
+from app.channels.telegram import router as telegram_router
+app.include_router(telegram_router)
 
 # ── Mock channel (local test) ─────────────────────────────────────────────────
 from app.channels.mock import router as mock_router
@@ -99,7 +105,7 @@ async def health_check():
     settings = get_settings()
     return {
         "status": "ok" if db_ok else "degraded",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "services": {
             "db": "ok" if db_ok else "error",
             "llm": llm_circuit.state.value,
@@ -109,6 +115,7 @@ async def health_check():
         },
         "config": {
             "zalo_configured": bool(settings.zalo_app_secret),
+            "telegram_configured": bool(settings.telegram_bot_token),
             "google_configured": bool(settings.google_sheet_template_id),
             "mock_channel": settings.mock_channel_enabled,
         },
