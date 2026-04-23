@@ -17,11 +17,11 @@
 - [HELP_CONTENT.md](./HELP_CONTENT.md) — nội dung đầy đủ 9 file help markdown
 - [RELIABILITY_SECURITY.md](./RELIABILITY_SECURITY.md) — production-grade spec, checklist, code pattern
 
-**Trạng thái:** Phase 2 — hoàn thành. Phase 1: 370 tests (87%). Phase 2: +33 tests (test_zalo_channel, test_sheets).
+**Trạng thái:** Phase 2 — hoàn thành (kể cả Telegram channel). Phase 1: 370 tests (87%). Phase 2: +58 tests (test_zalo_channel, test_sheets, test_telegram_channel). E2E integration test full flow passed.
 
 ---
 
-## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 23/04/2026 — session 4)
+## 🟢 TIẾN ĐỘ THỰC TẾ (cập nhật 23/04/2026 — session 5)
 
 ### Đã xong ✅
 
@@ -38,7 +38,8 @@
 
 **Storage** (`app/storage/`)
 - [x] `db.py` — SQLite async + schema init
-- [x] `repositories/trip_repo.py`, `member_repo.py`, `expense_repo.py`, `conversation_repo.py`
+- [x] `repositories/trip_repo.py` — thêm `get_trips_by_status()` **[session 5]**
+- [x] `repositories/member_repo.py`, `expense_repo.py`, `conversation_repo.py`
 - [x] `repositories/__init__.py` — export `AuditLogRepository`, `ContributionRepository`, `PendingRepository`, `SheetOutboxRepository`, ...
 
 **Reliability + Security + Observability**
@@ -46,8 +47,8 @@
 - [x] `reliability/retry.py` — tenacity retry configs
 - [x] `security/input_validation.py` — Pydantic + length + encoding + prompt injection regex
 - [x] `security/permissions.py` — `@require_admin` decorator, permission checks
-- [x] `observability/logging.py` — structlog JSON setup
-- [x] `observability/metrics.py` — Prometheus counters/gauges
+- [x] `observability/logging.py` — structlog JSON setup; remove `add_logger_name` (incompatible với PrintLoggerFactory) **[session 5]**
+- [x] `observability/metrics.py` — Prometheus counters/gauges; thêm zalo/sheets/drive metrics **[session 4]**
 - [x] `observability/tracing.py` — OpenTelemetry setup
 
 **Tools**
@@ -60,29 +61,36 @@
 **Channel**
 - [x] `channels/mock.py` — `POST /mock/send` endpoint test local
 - [x] `channels/zalo.py` — **Phase 2**: HMAC-SHA256 signature verify, parse webhook (text/image/follow), send reply via Zalo OA API v3, token refresh helper; retry + circuit breaker
+- [x] `channels/telegram.py` — **Phase 2 (session 4)**: X-Telegram-Bot-Api-Secret-Token verify, parse update (text/photo/document/caption/edited_message), send reply, `/webhook/telegram/register_webhook` endpoint, `/webhook/telegram/webhook_info` debug endpoint
 
 **Help content**
 - [x] `help/overview.md`, `chi.md`, `nap.md`, `ung.md`, `anh.md`, `admin.md`, `chiatien.md`, `share.md`, `welcome.md`
 
 **Entrypoint**
-- [x] `main.py` — **Phase 2**: include zalo_router; `/health` thêm drive circuit + config flags; version 0.2.0
+- [x] `main.py` — **Phase 2**: include zalo_router + telegram_router; `/health` thêm drive circuit + config flags (`zalo_configured`, `telegram_configured`, `google_configured`); version 0.3.0
 
-**Tests** (370 + 33 = 403 passed)
+**Config**
+- [x] `config.py` — thêm `telegram_bot_token`, `telegram_webhook_url`, `telegram_webhook_secret` **[session 4]**
+- [x] `.env` — điền thật: `TELEGRAM_BOT_TOKEN`, `LLM_API_KEY`, `DATABASE_URL`, `MOCK_CHANNEL_ENABLED=true` **[session 4]**
+
+**Tests** (370 + 58 = 428 passed)
 - [x] `test_fund.py`, `test_settlement.py`, `test_fuzzy_match.py`, `test_member_resolver.py`
 - [x] `test_money.py`, `test_utils.py`, `test_intents.py`
 - [x] `test_circuit_breaker.py`, `test_input_validation.py`
 - [x] `test_storage.py`
 - [x] `test_trip_resolver.py` — 12 unit tests cho trip_resolver
 - [x] `test_permissions.py` — 14 unit tests: `@require_admin`, `@require_trip_member`, `_reply` helper (coverage 100%)
-- [x] `test_observability.py` — 16 unit tests: logging, tracing, metrics (logging 100%, tracing 96%, metrics 100%)
+- [x] `test_observability.py` — 16 unit tests: logging, tracing, metrics
 - [x] `test_e2e_mock.py` — 65 E2E scenarios qua mock channel
 - [x] `test_zalo_channel.py` — **Phase 2**: 17 tests: signature verify (5), parse event (7), send message (4), webhook endpoint (4)
 - [x] `test_sheets.py` — **Phase 2**: 16 tests: append (4), rebuild (2), summary (1), provisioner (4), share (2)
+- [x] `test_telegram_channel.py` — **Phase 2 (session 4)**: 25 tests: verify secret (3), parse update (10), send message (6), webhook endpoints (6)
 
-**Git + CI**
+**Git**
 - [x] Repo init, remote `https://github.com/hieungo0503/Trip-Treasurer-Agent.git`
 - [x] Stop hook auto-commit + push sau mỗi Claude Code session
 - [x] `.gitignore` đầy đủ (secrets, .venv, __pycache__, .db, ...)
+- [x] 4 commits local trên main (chưa push — cần PAT/SSH key)
 
 ---
 
@@ -92,17 +100,32 @@
 - [x] `orchestrator.py`: import `utc_to_vn` từ `vn_time` nhưng function không tồn tại → gỡ import thừa
 
 **Coverage improvements trong session 3 (+62 tests, coverage 79.6% → 87%):**
-- [x] `security/permissions.py`: 0% → 100% (14 tests mới trong `test_permissions.py`)
-- [x] `observability/logging.py`: 53% → 100% (fix: dùng `patch("structlog.configure")` để tránh global state contamination)
-- [x] `observability/tracing.py`: 38% → 96% (fix: `patch("app.observability.tracing.log")` vì `add_logger_name` + `PrintLoggerFactory` không tương thích)
-- [x] `observability/metrics.py`: 100% (đã đủ qua test_observability.py)
-- [x] `agent/orchestrator.py`: 67% → 84% (30 E2E scenarios mới trong `test_e2e_mock.py` covering bot pause/resume, admin commands, query paths, exception handling, image OCR, confirm/cancel edge cases)
-- [x] Stop hook auto-commit message: đổi từ `auto: $(date)` sang format `feat+test(N files): name1,name2,name3`
+- [x] `security/permissions.py`: 0% → 100%
+- [x] `observability/logging.py`: 53% → 100%
+- [x] `observability/tracing.py`: 38% → 96%
+- [x] `agent/orchestrator.py`: 67% → 84% (+30 E2E scenarios)
+- [x] Stop hook auto-commit message: đổi format sang `feat+test(N files): name1,name2,name3`
+
+**Bugs đã phát hiện & fix trong session 5 (commit b3100f1):**
+- [x] `intents.py`: `AWAITING_CONFIRM` check nằm SAU `is_new_user → WELCOME` → user mới gửi "ok" bị classify là WELCOME thay vì CONFIRM. **Fix**: chuyển AWAITING_CONFIRM check lên TRƯỚC is_new_user block.
+- [x] `orchestrator.py`: `CONFIRM`/`CANCEL_PENDING` không có trong `_no_member_ok` → user mới (chưa có member_id) bị block khi confirm initial_topup. **Fix**: thêm CONFIRM + CANCEL_PENDING vào `_no_member_ok`.
+- [x] `orchestrator.py`: user mới (`is_new_user=True`) không được resolve `trip_status` → intent classifier không biết trip đang COLLECTING_TOPUP. **Fix**: thêm `elif is_new_user: collecting_trips = get_trips_by_status("collecting_topup")`.
+- [x] `commit_initial_topup.py`: không link `zalo_user_id` → placeholder member sau khi confirm → user mới vẫn là "new user" cho các request sau. **Fix**: gọi `member_repo.link_zalo(member_id, zalo_user_id)` khi xác nhận.
+- [x] `domain/fund.py`: `sum_nets_not_equal_fund` false positive do tolerance cứng 1đ — với 3 người chia đều 200k, integer floor division để lại 2đ gap. **Fix**: tolerance = `Σ (expense.amount_vnd % len(split_member_ids))` tính theo từng expense.
+- [x] `observability/logging.py`: `structlog.stdlib.add_logger_name` không tương thích với `PrintLoggerFactory` → AttributeError khi khởi động. **Fix**: gỡ processor này.
+- [x] `trip_repo.py`: thiếu method `get_trips_by_status(status)` cần cho orchestrator. **Fix**: thêm method.
+
+**Integration test thực tế passed (session 5):**
+- [x] Hà (new user) gửi "Hà đã nạp 500k" → confirmation card ✅
+- [x] Hà gửi "ok" → "✅ 500.000đ — Hà", zalo_user_id linked ✅
+- [x] Long tương tự → trip auto-ACTIVE (3/3) ✅
+- [x] Đức "chi 200k tiền ăn sáng" → confirm → committed ✅
+- [x] `/quy` → 1.300.000đ còn lại ✅
+- [x] `/tongket` → per-member net balances (+433.334đ mỗi người) ✅
 
 ### Còn lại 🔲
 
-**Phase 1 — chưa làm:**
-- [ ] `agent/nodes/` parse nodes (parse_expense.py, parse_topup.py, ...) — parse inline trong orchestrator, tách ra nếu cần test riêng
+**Phase 1 — chưa làm (không blocking):**
 - [ ] `security/output_filter.py`, `security/prompt_injection.py` — stub trong input_validation
 - [ ] `reliability/timeouts.py` — timeout per-operation config
 - [ ] `utils/idempotency.py` — helper idempotency check
@@ -110,14 +133,17 @@
 - [ ] `scripts/backup_db.sh`, `scripts/backup_offsite.sh`, `scripts/cleanup.py` — backup/maintenance
 - [ ] `docs/runbook.md`, `docs/incident_response.md`
 
-**Phase 2 — ✅ HOÀN THÀNH (session 4, 23/04/2026):**
+**Phase 2 — ✅ HOÀN THÀNH (session 4-5, 23/04/2026):**
 - [x] `channels/zalo.py` — HMAC-SHA256 verify + parse + send reply
+- [x] `channels/telegram.py` — Bot API verify + parse + send + register webhook
 - [x] `tools/sheets.py` — Google Sheets API thật (append, rebuild, summary)
 - [x] `tools/sheet_provisioner.py` — Drive API copy template thật + share
 - [x] `tools/sheet_projector.py` — dispatch thật theo op
-- [x] `main.py` — wire /webhook/zalo thật
-- [ ] Zalo OA credentials thật + webhook URL public (cần server HTTPS)
-- [ ] Sheet template setup + env vars (`GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`)
+- [x] `main.py` — wire /webhook/zalo + /webhook/telegram
+- [ ] **Còn lại để deploy thật**: Zalo OA credentials + webhook URL public (HTTPS server hoặc ngrok)
+- [ ] **Còn lại để deploy thật**: Sheet template setup + `GOOGLE_SHEET_TEMPLATE_ID`, `GOOGLE_SHEET_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`
+- [ ] **Còn lại để deploy thật**: Telegram webhook register (`POST /webhook/telegram/register_webhook`) với public HTTPS URL
+- [ ] **Còn lại**: Push code lên GitHub (cần setup PAT hoặc SSH key: `gh auth login`)
 
 **Phase 3 — chưa bắt đầu:**
 - [ ] Hardening: rate limit, chaos test, load test
