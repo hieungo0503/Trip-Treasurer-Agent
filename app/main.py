@@ -2,10 +2,11 @@
 FastAPI entry point.
 
 Routes:
-    POST /webhook/zalo  — nhận webhook từ Zalo OA (Phase 2)
-    POST /mock/send     — mock channel để test local (Phase 1)
+    GET  /webhook/zalo  — Zalo OA webhook verification (challenge)
+    POST /webhook/zalo  — nhận webhook từ Zalo OA + background process
+    POST /mock/send     — mock channel để test local
     GET  /health        — health check
-    GET  /metrics       — Prometheus metrics (Phase 3)
+    GET  /metrics       — Prometheus metrics
 """
 
 from __future__ import annotations
@@ -14,8 +15,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.config import get_settings
@@ -49,7 +49,12 @@ async def lifespan(app: FastAPI):
     from app.tools.sheet_projector import start_projector_loop, stop_projector
     projector_task = asyncio.create_task(start_projector_loop(interval_seconds=30))
 
-    log.info("app.started", mock_channel=settings.mock_channel_enabled)
+    log.info(
+        "app.started",
+        mock_channel=settings.mock_channel_enabled,
+        zalo_configured=bool(settings.zalo_app_secret),
+        google_configured=bool(settings.google_sheet_template_id),
+    )
     yield
 
     # Shutdown
@@ -67,11 +72,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Trip Treasurer Agent",
     description="AI Agent quản lý chi tiêu du lịch nhóm qua Zalo",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
-# ── Mock channel (Phase 1 test) ───────────────────────────────────────────────
+# ── Zalo webhook channel (Phase 2) ────────────────────────────────────────────
+from app.channels.zalo import router as zalo_router
+app.include_router(zalo_router)
+
+# ── Mock channel (local test) ─────────────────────────────────────────────────
 from app.channels.mock import router as mock_router
 app.include_router(mock_router)
 
@@ -87,27 +96,23 @@ async def health_check():
     except Exception:
         db_ok = False
 
+    settings = get_settings()
     return {
         "status": "ok" if db_ok else "degraded",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "services": {
             "db": "ok" if db_ok else "error",
             "llm": llm_circuit.state.value,
             "sheets": sheets_circuit.state.value,
+            "drive": drive_circuit.state.value,
             "zalo": zalo_circuit.state.value,
         },
+        "config": {
+            "zalo_configured": bool(settings.zalo_app_secret),
+            "google_configured": bool(settings.google_sheet_template_id),
+            "mock_channel": settings.mock_channel_enabled,
+        },
     }
-
-
-# ── Webhook Zalo (Phase 2) ────────────────────────────────────────────────────
-
-@app.post("/webhook/zalo")
-async def zalo_webhook(request: Request):
-    """
-    Phase 2: verify Zalo signature, enqueue, return 200 < 2s.
-    Phase 1 placeholder.
-    """
-    return JSONResponse({"ok": True, "note": "Phase 2 not implemented yet"})
 
 
 # ── Metrics ───────────────────────────────────────────────────────────────────

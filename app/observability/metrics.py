@@ -72,3 +72,29 @@ messages_replied_total = Counter(
     "Total messages replied to user",
     ["status"],  # status = ok|error
 )
+
+# ── Zalo channel ──────────────────────────────────────────────────────────────
+
+zalo_messages_received = Counter(
+    "agent_zalo_messages_received_total",
+    "Zalo webhook events received, by event type",
+    ["event_type"],
+)
+zalo_send_errors = Counter(
+    "agent_zalo_send_errors_total",
+    "Zalo message send failures, by reason",
+    ["reason"],
+)
+
+# ── Google Sheets / Drive ─────────────────────────────────────────────────────
+
+sheets_append_total = Counter(
+    "agent_sheets_append_total",
+    "Google Sheets append row calls",
+    ["op", "status"],  # op = expense|contribution; status = ok|error
+)
+drive_provision_total = Counter(
+    "agent_drive_provision_total",
+    "Google Drive sheet provision calls",
+    ["status"],  # ok|error
+)
